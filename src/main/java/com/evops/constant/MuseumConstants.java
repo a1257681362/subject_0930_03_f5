@@ -134,4 +134,37 @@ public final class MuseumConstants {
     public static final String ACTION_PLAN_SIGN = "PLAN_SIGN";
     public static final String ACTION_PLAN_RETURN = "PLAN_RETURN";
     public static final String ACTION_PLAN_APPROVE = "PLAN_APPROVE";
+
+    // --------------------------------------------------------------------
+    // museum-5 展厅温湿度与照度巡检
+    // --------------------------------------------------------------------
+
+    /** 展厅状态：开放 / 关闭 */
+    public static final String HALL_ACTIVE = "ACTIVE";
+    public static final String HALL_CLOSED = "CLOSED";
+
+    /** 陈列状态：在展 / 已撤展 */
+    public static final String DISPLAY_ON = "ON_DISPLAY";
+    public static final String DISPLAY_REMOVED = "REMOVED";
+
+    /** 巡检规则版本状态：现行 / 已被新版本取代（只读，历史巡检仍引用） */
+    public static final String RULE_ACTIVE = "ACTIVE";
+    public static final String RULE_SUPERSEDED = "SUPERSEDED";
+
+    /** 巡检计划状态：已生成 */
+    public static final String PLAN_GENERATED = "GENERATED";
+
+    /** 巡检任务状态：待巡检 / 已完成（完成后只读） */
+    public static final String TASK_PENDING = "PENDING";
+    public static final String TASK_COMPLETED = "COMPLETED";
+
+    /** 超限指标：温度 / 湿度 / 照度 */
+    public static final String METRIC_TEMPERATURE = "TEMPERATURE";
+    public static final String METRIC_HUMIDITY = "HUMIDITY";
+    public static final String METRIC_ILLUMINANCE = "ILLUMINANCE";
+
+    /** 超限事件状态：待处置 / 已处置待复核 / 已复核关闭 */
+    public static final String EVENT_OPEN = "OPEN";
+    public static final String EVENT_HANDLED = "HANDLED";
+    public static final String EVENT_CLOSED = "CLOSED";
 }
