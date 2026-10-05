@@ -39,6 +39,12 @@
 | `t_material_usage` / `t_material_usage_line` | 工单材料领用单与明细行：批号、计划/实际用量、部位、操作者（行内快照） |
 | `t_material_return` | 退料单，必须关联原领用单与原明细行，库存加回原批号 |
 | `t_material_review` | 用量差异复核，每条超阈值明细行全生命周期唯一一条（定时任务幂等锚点） |
+| `t_hall` / `t_hall_relic` | 展厅与在展陈展（点位+材质快照），巡检任务按展厅生成，撤展只置状态 |
+| `t_env_rule_version` / `t_env_rule_item` | 环境巡检规则版本与材质条目（温湿度/照度阈值、采样频率），发布新版本旧版本置 `SUPERSEDED` 只追加 |
+| `t_inspection_task` | 巡检任务：按展厅一轮一行，固化规则版本快照，`(hall_id, round_no)` 幂等 |
+| `t_env_reading` / `t_env_reading_detail` | 点位读数与按材质判定明细：阈值/版本随读数固化，历史不随后续版本改写 |
+| `t_env_event` / `t_env_event_photo` | 异常事件（按展厅+点位+指标+材质归并连续超限）与现场照片，关闭须处置人+照片+保管员复核 |
+| `t_env_ledger` | 环境台账：规则发布/任务生成/读数/事件开闭处置复核全部只追加留痕、标明规则版本 |
 
 约束：文物编号 `uk_relic_no`、项目编号 `uk_project_no` 数据库层唯一（含已撤销/已作废记录）；
 撤销与作废均不删除任何数据。
@@ -207,3 +213,71 @@ mvn test
 - `RepairPlanCountersignTest`：会签顺序按风险等级配置（一级外部专家先签、三级外部专家末签）；
   乱序/代签一律拒绝；退回后旧版本只读、修订只能开新版本；意见/签名时间/依据附件留痕；
   会签未完成禁止开工、全部通过后允许开工；版本封存临界前后签名始终归属签署时的在签版本。
+
+## 展厅温湿度与照度巡检（museum-5）
+
+展厅按**点位**对温度、相对湿度、照度三项指标巡检。规则按**材质**配置阈值与采样频率、
+按**版本**发布；巡检任务**按展厅**生成；异常必须关联**现场照片与处置人**，
+**连续超限合并为同一事件**，事件关闭前必须由**保管员复核**；报表与台账均**标明规则版本**。
+
+### 巡检规则
+
+- **不同材质不同阈值与频率**：规则版本中每个材质一条目
+  （温度/湿度/照度上下限 + `sampleIntervalMin` 采样频率，如纸质 60 分钟、青铜 120 分钟）。
+  按展厅生成任务时，节拍取展厅内在展文物各材质频率的**最小值**（最严格者决定巡检密度）；
+  全部材质均无条目时用 `museum.env.default-interval-min` 兜底。
+- **规则按版本发布，只追加不改写**：`POST /api/env-rules/publish` 发布新版本后旧生效版本置
+  `SUPERSEDED`（内容永不改写）。任务生成时固化 `rule_version_id/no` 快照，读数按**任务的版本**
+  判定并把版本与各材质阈值固化在读数及 `t_env_reading_detail` 明细中——**新版本不改写任何
+  已生成/已完成巡检**，任务/读数一经完成不可补改。
+- **按展厅生成任务**：定时扫描（`museum.env.generate-interval-ms`，启动就绪补扫一轮）与
+  手动 `POST /api/inspection/tasks/generate?force=true` 同一口径；每展厅轮次号递增，
+  `(hall_id, round_no)` 数据库唯一，且每个展厅同时只有一个 `PENDING` 轮次，重复触发不生成重复任务。
+- **逐材质判定**：一个点位可展陈多种材质，读数按各材质条目分别判定、分别固化阈值明细；
+  点位在展但规则无条目的材质标记为 `uncoveredMaterials` 不猜测阈值；读数必须覆盖全部在展点位、
+  点位不允许重复。
+- **连续超限合并**：事件归并键 `展厅|点位|指标|材质`（`merge_key` 唯一，仅 `OPEN/HANDLING`
+  在途事件持有）。同一材质同一指标连续越限只更新同一事件的末次读数/峰值/累计次数，不新开；
+  指标恢复正常后事件转 `RESOLVED` 并释放归并键，再次越限另开新事件。
+- **异常关联现场照片与处置人**：现场照片走影像归档 SHA-256 内容寻址（同文件只一份，
+  不套用 800×800 归档下限）；事件关闭前必须已登记处置人且至少一张现场照片，否则保管员无法关闭。
+- **保管员复核关闭**：仅 `RESOLVED`（指标已恢复）事件可复核；复核通过才 `CLOSED` 封存，
+  复核不通过退回 `HANDLING`，系统停留待处理，须重新处置并待指标再次恢复后复核。
+- **待处理与可追溯**：修复审批只完成一半（方案仍 `SIGNING`）时禁止开工、停留待处理，
+  不影响巡检侧；规则发布、任务生成、每条读数、事件开/并/恢复/处置/驳回/关闭全部追加写入
+  `t_env_ledger`，任务/读数/事件报表都带规则版本号，环境指标与巡检计划全程可追溯。
+
+### 事件状态链路
+
+`OPEN（连续超限并入）→ HANDLING（已登记处置人）→ RESOLVED（指标恢复待复核）→ CLOSED（保管员复核）`
+
+- `OPEN` 登记处置人即转 `HANDLING`；处置中仍接受连续超限并入。
+- 保管员在非 `RESOLVED` 状态复核一律拒绝（系统停留待处理）。
+- 复核不通过：退回 `HANDLING`；现场持续恢复后系统自动重新置回 `RESOLVED`，不留死事件。
+
+### 巡检接口
+
+| 方法与路径 | 作用 |
+| --- | --- |
+| `POST /api/halls` / `GET /api/halls` / `GET /api/halls/{id}` | 展厅建档 / 列表 / 详情（含在展文物点位材质） |
+| `POST /api/halls/{id}/relics` / `POST /api/halls/{id}/relics/{relicId}/withdraw` | 文物按点位上展 / 撤展（历史保留） |
+| `POST /api/env-rules/publish` | 发布规则新版本（旧版本自动 `SUPERSEDED`） |
+| `GET /api/env-rules` / `GET /api/env-rules/active` / `GET /api/env-rules/{id}` | 版本列表 / 当前生效版本 / 版本材质条目 |
+| `POST /api/inspection/tasks/generate?force=true` | 手动触发一轮按展厅生成（定时任务同口径，幂等） |
+| `GET /api/inspection/tasks?hallId=&status=` | 巡检任务列表（每项标明规则版本） |
+| `POST /api/inspection/tasks/{id}/readings` | 提交一轮各点位温湿度/照度读数（覆盖全部点位） |
+| `GET /api/inspection/tasks/{id}/report` | 任务报表：任务+读数+按材质阈值明细，标明规则版本 |
+| `GET /api/env-events?hallId=&status=&pointCode=&material=` | 异常事件列表（可按状态/点位/材质过滤） |
+| `GET /api/env-events/{id}` | 事件报表：事件头（首警规则版本）+ 现场照片 |
+| `POST /api/env-events/{id}/handle` | 登记处置人与处置说明 |
+| `POST /api/env-events/{id}/photos` | multipart 上传现场照片（内容寻址去重，关闭前至少一张） |
+| `POST /api/env-events/{id}/review` | 保管员复核：通过关闭 / 不通过退回处置中 |
+| `GET /api/env-ledgers?hallId=` | 环境台账（不传展厅为全馆；规则发布挂全馆） |
+
+### 测试
+
+`EnvInspectionTest`（独立内存库）覆盖：三类材质不同阈值/频率、任务节拍取最小频率；
+任务/读数/事件固化版本快照，发布 v2 后历史任务与读数仍按 v1 阈值；连续两轮超限合并为一个事件、
+恢复后再次超限另开新事件；关闭前缺处置人或缺照片均拒绝、保管员复核通过才关闭、驳回停留待处理；
+同点位纸/青铜同时越限分别成事件；十轮任务与环境台账全程标明规则版本可追溯；
+修复方案会签只完成一半时禁止开工、巡检侧任务与指标不受影响。

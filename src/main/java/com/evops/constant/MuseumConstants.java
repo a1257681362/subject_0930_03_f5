@@ -134,4 +134,53 @@ public final class MuseumConstants {
     public static final String ACTION_PLAN_SIGN = "PLAN_SIGN";
     public static final String ACTION_PLAN_RETURN = "PLAN_RETURN";
     public static final String ACTION_PLAN_APPROVE = "PLAN_APPROVE";
+
+    // --------------------------------------------------------------------
+    // museum-5 展厅温湿度与照度巡检
+    // --------------------------------------------------------------------
+
+    /** 展厅状态：开放 / 关闭（关闭后不再生成新巡检任务，历史保留） */
+    public static final String HALL_ACTIVE = "ACTIVE";
+    public static final String HALL_CLOSED = "CLOSED";
+
+    /** 展厅文物陈展状态：展出中 / 已撤展 */
+    public static final String DISPLAY_ON = "ON_DISPLAY";
+    public static final String DISPLAY_WITHDRAWN = "WITHDRAWN";
+
+    /** 环境规则版本状态：草稿 / 当前生效 / 已被新版本取代（只追加不改写） */
+    public static final String ENV_RULE_DRAFT = "DRAFT";
+    public static final String ENV_RULE_ACTIVE = "ACTIVE";
+    public static final String ENV_RULE_SUPERSEDED = "SUPERSEDED";
+
+    /** 巡检任务状态：待巡检 / 已完成 / 已取消（规则新版本不改写已完成巡检） */
+    public static final String TASK_PENDING = "PENDING";
+    public static final String TASK_DONE = "DONE";
+    public static final String TASK_CANCELLED = "CANCELLED";
+
+    /** 环境指标码：温度 / 相对湿度 / 照度 */
+    public static final String METRIC_TEMP = "TEMP";
+    public static final String METRIC_HUMIDITY = "HUMIDITY";
+    public static final String METRIC_LUX = "LUX";
+
+    /**
+     * 异常事件状态：
+     * OPEN 异常持续中（连续超限合并）/ HANDLING 处置中
+     * / RESOLVED 指标恢复待保管员复核 / CLOSED 保管员复核关闭
+     */
+    public static final String EVENT_OPEN = "OPEN";
+    public static final String EVENT_HANDLING = "HANDLING";
+    public static final String EVENT_RESOLVED = "RESOLVED";
+    public static final String EVENT_CLOSED = "CLOSED";
+
+    /** 环境台账流水动作 */
+    public static final String ACTION_RULE_PUBLISH = "RULE_PUBLISH";
+    public static final String ACTION_TASK_GENERATE = "TASK_GENERATE";
+    public static final String ACTION_READING_OK = "READING_OK";
+    public static final String ACTION_READING_ABNORMAL = "READING_ABNORMAL";
+    public static final String ACTION_EVENT_OPEN = "EVENT_OPEN";
+    public static final String ACTION_EVENT_MERGE = "EVENT_MERGE";
+    public static final String ACTION_EVENT_RESOLVE = "EVENT_RESOLVE";
+    public static final String ACTION_EVENT_HANDLE = "EVENT_HANDLE";
+    public static final String ACTION_EVENT_REVIEW_REJECT = "EVENT_REVIEW_REJECT";
+    public static final String ACTION_EVENT_CLOSE = "EVENT_CLOSE";
 }

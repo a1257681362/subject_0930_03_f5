@@ -99,10 +99,21 @@ public class ImageStorage {
      * @throws IllegalArgumentException 内容不可解码为图片，或分辨率低于归档下限
      */
     public StoredPhoto store(byte[] content, String originalName, String contentType) {
+        return store(content, originalName, contentType, true);
+    }
+
+    /**
+     * 按内容哈希落盘。
+     *
+     * @param enforceMinSize true 时执行归档分辨率下限校验（文物多角度影像）；
+     *                       false 时仅要求可解码（展厅异常现场照片，不套归档下限）
+     */
+    public StoredPhoto store(byte[] content, String originalName, String contentType,
+                             boolean enforceMinSize) {
         BufferedImage image = decode(content);
         int width = image.getWidth();
         int height = image.getHeight();
-        if (width < minWidth || height < minHeight) {
+        if (enforceMinSize && (width < minWidth || height < minHeight)) {
             throw new IllegalArgumentException("分辨率 " + width + "x" + height
                     + " 低于归档下限 " + minWidth + "x" + minHeight);
         }

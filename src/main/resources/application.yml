@@ -53,6 +53,13 @@ museum:
       ONE: EXTERNAL,INTERNAL,CUSTODIAN
       TWO: INTERNAL,EXTERNAL,CUSTODIAN
       THREE: INTERNAL,CUSTODIAN,EXTERNAL
+  # 展厅温湿度与照度巡检（museum-5）
+  env:
+    # 展厅文物材质在生效规则中无匹配条目时的兜底采样频率（分钟）
+    default-interval-min: 240
+    # 应用就绪后补生成到期巡检任务（重启场景），之后按固定间隔扫描
+    generate-on-startup: true
+    generate-interval-ms: 60000
 
 mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
